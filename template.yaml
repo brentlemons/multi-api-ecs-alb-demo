@@ -1,0 +1,581 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation template to create a new ECS Fargate First Run stack
+Parameters:
+  ECRRepositoryUri:
+    Description: Where this pipeline should store built artifacts
+    Type: String
+  ECRImageTag:
+    Description: Where this pipeline should store built artifacts
+    Type: String
+  TaskCount:
+    Description: How many tasks to start
+    Type: Number
+  StageName:
+    Description: Name the stage
+    Type: String
+  ContainerPort:
+    Description: port the service exposes
+    Type: Number
+    Default: 5000
+  # for autoscaling
+  MinTasks:
+    Type: Number
+    Default: 2
+  # for autoscaling
+  MaxTasks:
+    Type: Number
+    Default: 10
+  # target CPU utilization (%)
+  AutoScalingTargetValue:
+    Type: Number
+    Default: 50
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.76.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-vpc'
+        
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: allow connections from specified CIDR ranges
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        CidrIp: 10.76.3.0/24
+      - IpProtocol: tcp
+        FromPort: !Ref ContainerPort
+        ToPort: !Ref ContainerPort
+        CidrIp: 10.76.0.0/16
+
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VPCEndpoints ingress on 443
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+
+  VpcLinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VPCEndpoints ingress on 80
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1d
+      CidrBlock: 10.76.3.0/24
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-public-subnet'
+
+  PrivateSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      CidrBlock: 10.76.0.0/24
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-private-subnet-0'
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1b
+      CidrBlock: 10.76.1.0/24
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-private-subnet-1'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1c
+      CidrBlock: 10.76.2.0/24
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-private-subnet-2'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-internet-gateway'
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateSubnetRouteTableAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet0
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  EcrDkrVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      PrivateDnsEnabled: true
+
+  EcrApiVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      PrivateDnsEnabled: true
+
+  S3VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref VPC
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - 's3:GetObject'
+            Resource:
+              - !Sub 'arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*'
+
+  LogsVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      PrivateDnsEnabled: true
+
+  ApiECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: ecs-tasks.amazonaws.com
+      Path: /
+
+  ApiECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VPCEndpoints ingress on 80
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId:
+          Fn::GetAtt: [ VpcLinkSecurityGroup, GroupId ]
+
+  ApiApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      Scheme: internal
+      Subnets: 
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+
+  ArithmeticTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckPath: '/arithmetic/'
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      TargetType: ip
+      VpcId: !Ref VPC
+
+  TrigonometryTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckPath: '/trigonometry/'
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      TargetType: ip
+      VpcId: !Ref VPC
+
+  ApiALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref ArithmeticTargetGroup
+      LoadBalancerArn: !Ref ApiApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  ArithmeticListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ArithmeticTargetGroup
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /arithmetic/
+      ListenerArn: !Ref ApiALBListener
+      Priority: 1
+
+  TrigonometryListenerRule:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TrigonometryTargetGroup
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /trigonometry/
+      ListenerArn: !Ref ApiALBListener
+      Priority: 2
+
+  ArithmeticTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      RequiresCompatibilities: 
+        - 'FARGATE'
+      ContainerDefinitions: 
+        - Name: !Join ['-', [!Ref 'AWS::StackName', 'Container']]
+          Image: !Sub '${ECRRepositoryUri}:${ECRImageTag}'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Essential: 'true'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Sub '/ecs/${AWS::StackName}' # causing failure to start. create in advance?
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: 'ecs'
+      TaskRoleArn: !Ref ApiECSServiceRole
+      ExecutionRoleArn: !Ref ApiECSServiceRole
+      Memory: '1 GB'
+      Cpu: '0.25 vCPU'
+      Family: !Sub '${AWS::StackName}'
+      NetworkMode: 'awsvpc'
+
+  TrigonometryTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      RequiresCompatibilities: 
+        - 'FARGATE'
+      ContainerDefinitions: 
+        - Name: !Join ['-', [!Ref 'AWS::StackName', 'Container']]
+          Image: !Sub '247395643054.dkr.ecr.us-east-1.amazonaws.com/flask-trigonometry-api-demo:${ECRImageTag}'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Essential: 'true'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Sub '/ecs/${AWS::StackName}' # causing failure to start. create in advance?
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: 'ecs'
+      TaskRoleArn: !Ref ApiECSServiceRole
+      ExecutionRoleArn: !Ref ApiECSServiceRole
+      Memory: '1 GB'
+      Cpu: '0.25 vCPU'
+      Family: !Sub '${AWS::StackName}'
+      NetworkMode: 'awsvpc'
+
+  ArithmeticService:
+    Type: AWS::ECS::Service
+    DependsOn: ApiALBListener
+    Properties: 
+      Cluster: !Ref ApiECSCluster
+      LaunchType: 'FARGATE'
+      PlatformVersion: 1.4.0
+      TaskDefinition: !Ref ArithmeticTaskDefinition
+      ServiceName: !Sub 'arithmetic-api-service'
+      DesiredCount: !Ref TaskCount
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController: 
+        Type: 'ECS'
+      NetworkConfiguration: 
+        AwsvpcConfiguration:
+          AssignPublicIp: 'DISABLED'
+          Subnets: 
+            - !Ref PrivateSubnet0
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups: 
+            - !Ref ApiSecurityGroup            
+      LoadBalancers:
+        - TargetGroupArn:
+            Ref: ArithmeticTargetGroup
+          ContainerPort: !Ref ContainerPort
+          ContainerName: !Join ['-', [!Ref 'AWS::StackName', 'Container']]
+
+  TrigonometryService:
+    Type: AWS::ECS::Service
+    DependsOn: ApiALBListener
+    Properties: 
+      Cluster: !Ref ApiECSCluster
+      LaunchType: 'FARGATE'
+      PlatformVersion: 1.4.0
+      TaskDefinition: !Ref TrigonometryTaskDefinition
+      ServiceName: !Sub 'trigonometry-api-service'
+      DesiredCount: !Ref TaskCount
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController: 
+        Type: 'ECS'
+      NetworkConfiguration: 
+        AwsvpcConfiguration:
+          AssignPublicIp: 'DISABLED'
+          Subnets: 
+            - !Ref PrivateSubnet0
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups: 
+            - !Ref ApiSecurityGroup            
+      LoadBalancers:
+        - TargetGroupArn:
+            Ref: TrigonometryTargetGroup
+          ContainerPort: !Ref ContainerPort
+          ContainerName: !Join ['-', [!Ref 'AWS::StackName', 'Container']]
+
+  HttpApi:
+    Type: 'AWS::ApiGatewayV2::Api'
+    Properties:
+      Name: !Join ['-', [!Ref 'AWS::StackName', 'Api']]
+      Description: !Join ['-', [!Ref 'AWS::StackName', 'Api']]
+      ProtocolType: HTTP
+
+  HttpApiVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties: 
+      Name: !Join ['-', [!Ref 'AWS::StackName', 'VpcLink']]
+      SubnetIds: 
+        - !Ref PrivateSubnet0
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds: 
+        - !Ref VpcLinkSecurityGroup            
+
+  HttpApiALBIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref HttpApi
+      Description: Load Balancer Integration
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref HttpApiVpcLink
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !Ref ApiALBListener
+      IntegrationMethod: ANY
+      PayloadFormatVersion: 1.0
+
+  ArithmeticApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: 
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /arithmetic/{proxy+}
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref HttpApiALBIntegration
+
+  TrigonometryApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: 
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /trigonometry/{proxy+}
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref HttpApiALBIntegration
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties: 
+      ApiId: !Ref HttpApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: '$default'
+
+  ApiDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn: 
+      - ArithmeticApiRoute
+      - TrigonometryApiRoute
+    Properties: 
+      ApiId: !Ref HttpApi
+
+  # A role needed for auto scaling
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-AutoScalingRole'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinTasks
+      MaxCapacity: !Ref MaxTasks
+      ResourceId: !Join ['/', [service, !Ref ApiECSCluster, !GetAtt ArithmeticService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      # "The Amazon Resource Name (ARN) of an AWS Identity and Access Management (IAM) role that allows Application Auto Scaling to modify your scalable target."
+      RoleARN: !GetAtt AutoScalingRole.Arn
+
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-AutoScalingPolicy'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        TargetValue: !Ref AutoScalingTargetValue
+
+  TrigonometryAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinTasks
+      MaxCapacity: !Ref MaxTasks
+      ResourceId: !Join ['/', [service, !Ref ApiECSCluster, !GetAtt TrigonometryService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      # "The Amazon Resource Name (ARN) of an AWS Identity and Access Management (IAM) role that allows Application Auto Scaling to modify your scalable target."
+      RoleARN: !GetAtt AutoScalingRole.Arn
+
+  TrigonometryAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-TrigonometryAutoScalingPolicy'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref TrigonometryAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        TargetValue: !Ref AutoScalingTargetValue
+
+Outputs:
+
+  PublicApiUrl:
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStage}
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicApiUrl
