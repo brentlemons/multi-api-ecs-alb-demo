@@ -25,11 +25,11 @@ Parameters:
   MinTaskCount:
     Description: Minimum number of tasks for each service
     Type: Number
-    Default: 2
+    Default: 3
   MaxTaskCount:
     Description: Maximum number of tasks for each service
     Type: Number
-    Default: 10
+    Default: 6
   AutoScalingTargetValue:
     Description: CPU Utilization threshold for auto scaling
     Type: Number
@@ -407,7 +407,7 @@ Resources:
       DesiredCount: !Ref MinTaskCount
       DeploymentConfiguration:
         MinimumHealthyPercent: 100
-        MaximumPercent: 200
+        MaximumPercent: 400
       DeploymentController: 
         Type: 'ECS'
       NetworkConfiguration: 
@@ -470,7 +470,7 @@ Resources:
       DesiredCount: !Ref MinTaskCount
       DeploymentConfiguration:
         MinimumHealthyPercent: 100
-        MaximumPercent: 200
+        MaximumPercent: 400
       DeploymentController: 
         Type: 'ECS'
       NetworkConfiguration: 
