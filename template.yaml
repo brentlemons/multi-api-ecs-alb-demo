@@ -35,82 +35,98 @@ Parameters:
     Type: Number
     Default: 50
 
+
+
+
+  VPC:
+    Type: "AWS::EC2::VPC::Id"
+
+  PrivateSubnet0:
+    Type: "String"
+
+  PrivateSubnet1:
+    Type: "String"
+
+  PrivateSubnet2:
+    Type: "String"
+
+
 Resources:
 
   ##################################################################
   ## Start by defining the VPC and basics of the infrastructure
   ##################################################################
 
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.76.0.0/16
-      EnableDnsSupport: 'true'
-      EnableDnsHostnames: 'true'
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-vpc'
+  # VPC:
+  #   Type: AWS::EC2::VPC
+  #   Properties:
+  #     CidrBlock: 10.76.0.0/16
+  #     EnableDnsSupport: 'true'
+  #     EnableDnsHostnames: 'true'
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-vpc'
 
-  ## public subnet is not necessary. creating to allow bastion creation for debugging
-  PublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: us-east-1d
-      CidrBlock: 10.76.3.0/24
-      VpcId:
-        Ref: VPC
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-public-subnet'
+  # ## public subnet is not necessary. creating to allow bastion creation for debugging
+  # PublicSubnet:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: us-east-1d
+  #     CidrBlock: 10.76.3.0/24
+  #     VpcId:
+  #       Ref: VPC
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-public-subnet'
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-internet-gateway'
+  # InternetGateway:
+  #   Type: AWS::EC2::InternetGateway
+  #   Properties:
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-internet-gateway'
 
-  InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+  # InternetGatewayAttachment:
+  #   Type: AWS::EC2::VPCGatewayAttachment
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     InternetGatewayId: !Ref InternetGateway
 
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
+  # PublicRouteTable:
+  #   Type: AWS::EC2::RouteTable
+  #   Properties:
+  #     VpcId: !Ref VPC
 
-  PublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+  # PublicRoute:
+  #   Type: AWS::EC2::Route
+  #   DependsOn: InternetGatewayAttachment
+  #   Properties:
+  #     RouteTableId: !Ref PublicRouteTable
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     GatewayId: !Ref InternetGateway
 
-  PublicSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet
-      RouteTableId: !Ref PublicRouteTable
+  # PublicSubnetRouteTableAssociation:
+  #   Type: AWS::EC2::SubnetRouteTableAssociation
+  #   Properties:
+  #     SubnetId: !Ref PublicSubnet
+  #     RouteTableId: !Ref PublicRouteTable
 
-  ## Create 3 private subnets to distribute the ECS tasks
+  # ## Create 3 private subnets to distribute the ECS tasks
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
 
-  PrivateSubnet0:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: us-east-1a
-      CidrBlock: 10.76.0.0/24
-      VpcId:
-        Ref: VPC
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-private-subnet-0'
+  # PrivateSubnet0:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: us-east-1a
+  #     CidrBlock: 10.76.0.0/24
+  #     VpcId:
+  #       Ref: VPC
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-private-subnet-0'
 
   PrivateSubnetRouteTableAssociation0:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -118,16 +134,16 @@ Resources:
       SubnetId: !Ref PrivateSubnet0
       RouteTableId: !Ref PrivateRouteTable
 
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: us-east-1b
-      CidrBlock: 10.76.1.0/24
-      VpcId:
-        Ref: VPC
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-private-subnet-1'
+  # PrivateSubnet1:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: us-east-1b
+  #     CidrBlock: 10.76.1.0/24
+  #     VpcId:
+  #       Ref: VPC
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-private-subnet-1'
 
   PrivateSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -135,16 +151,16 @@ Resources:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable
 
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: us-east-1c
-      CidrBlock: 10.76.2.0/24
-      VpcId:
-        Ref: VPC
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-private-subnet-2'
+  # PrivateSubnet2:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     AvailabilityZone: us-east-1c
+  #     CidrBlock: 10.76.2.0/24
+  #     VpcId:
+  #       Ref: VPC
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub '${AWS::StackName}-private-subnet-2'
 
   PrivateSubnetRouteTableAssociation2:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -157,77 +173,77 @@ Resources:
   ## ECS needs VPC endpoints for ECR, logs, and S3
   ##################################################################
 
-  ## Endpoints need access via port 443
-  VpcEndpointSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow VPCEndpoints ingress on 443
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: 0.0.0.0/0
+  # ## Endpoints need access via port 443
+  # VpcEndpointSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Allow VPCEndpoints ingress on 443
+  #     VpcId: !Ref VPC
+  #     SecurityGroupIngress:
+  #     - IpProtocol: tcp
+  #       FromPort: 443
+  #       ToPort: 443
+  #       CidrIp: 0.0.0.0/0
 
-  EcrDkrVpcEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
-      VpcId: !Ref VPC
-      VpcEndpointType: Interface
-      SecurityGroupIds:
-        - !Ref VpcEndpointSecurityGroup
-      SubnetIds:
-        - !Ref PrivateSubnet0
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      PrivateDnsEnabled: true
+  # EcrDkrVpcEndpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.dkr'
+  #     VpcId: !Ref VPC
+  #     VpcEndpointType: Interface
+  #     SecurityGroupIds:
+  #       - !Ref VpcEndpointSecurityGroup
+  #     SubnetIds:
+  #       - !Ref PrivateSubnet0
+  #       - !Ref PrivateSubnet1
+  #       - !Ref PrivateSubnet2
+  #     PrivateDnsEnabled: true
 
-  EcrApiVpcEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
-      VpcId: !Ref VPC
-      VpcEndpointType: Interface
-      SecurityGroupIds:
-        - !Ref VpcEndpointSecurityGroup
-      SubnetIds:
-        - !Ref PrivateSubnet0
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      PrivateDnsEnabled: true
+  # EcrApiVpcEndpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ecr.api'
+  #     VpcId: !Ref VPC
+  #     VpcEndpointType: Interface
+  #     SecurityGroupIds:
+  #       - !Ref VpcEndpointSecurityGroup
+  #     SubnetIds:
+  #       - !Ref PrivateSubnet0
+  #       - !Ref PrivateSubnet1
+  #       - !Ref PrivateSubnet2
+  #     PrivateDnsEnabled: true
 
-  LogsVpcEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
-      VpcId: !Ref VPC
-      VpcEndpointType: Interface
-      SecurityGroupIds:
-        - !Ref VpcEndpointSecurityGroup
-      SubnetIds:
-        - !Ref PrivateSubnet0
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      PrivateDnsEnabled: true
+  # LogsVpcEndpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+  #     VpcId: !Ref VPC
+  #     VpcEndpointType: Interface
+  #     SecurityGroupIds:
+  #       - !Ref VpcEndpointSecurityGroup
+  #     SubnetIds:
+  #       - !Ref PrivateSubnet0
+  #       - !Ref PrivateSubnet1
+  #       - !Ref PrivateSubnet2
+  #     PrivateDnsEnabled: true
 
-  S3VpcEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
-      VpcId: !Ref VPC
-      VpcEndpointType: Gateway
-      RouteTableIds:
-        - !Ref PrivateRouteTable
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action:
-              - 's3:GetObject'
-            Resource:
-              - !Sub 'arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*'
+  # S3VpcEndpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+  #     VpcId: !Ref VPC
+  #     VpcEndpointType: Gateway
+  #     RouteTableIds:
+  #       - !Ref PrivateRouteTable
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal: '*'
+  #           Action:
+  #             - 's3:GetObject'
+  #           Resource:
+  #             - !Sub 'arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*'
 
 
   ##################################################################
