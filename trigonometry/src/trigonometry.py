@@ -72,9 +72,9 @@ class Calculate(Resource):
         except ValidationError as err:
             return err.messages, 422
 
-# sin A = opposite / hypotenuse = a / c
-# cos A = adjacent / hypotenuse = b / c
-# tan A = opposite / adjacent = a / b
+        # sin A = opposite / hypotenuse = a / c
+        # cos A = adjacent / hypotenuse = b / c
+        # tan A = opposite / adjacent = a / b
 
         if ('opposite' in data and 'hypotenuse' in data):
             opposite = data['opposite']
