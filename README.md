@@ -54,3 +54,6 @@ aws cloudformation deploy \
 --s3-bucket {YOUR_BucketName} \
 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 ```
+
+## Architecture CloudFormation builds
+![Plumber on ECS Architecture](./docs/architecture.png)
